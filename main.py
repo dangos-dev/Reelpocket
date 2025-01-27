@@ -58,6 +58,14 @@ bot.builder.add_handler(
     )
 )
 
+# Instagram Post/Post URL input
+bot.builder.add_handler(
+    MessageHandler(
+        filters=filters.Regex(r"^https://(?:www.)?instagram.com/p/.*"),
+        callback=bot.send_instagram_photo,
+    )
+)
+
 # Report error
 bot.builder.add_handler(
     CallbackQueryHandler(pattern=r"^report_url$", callback=bot.handle_report_error)

@@ -1,6 +1,8 @@
 import logging
+from functools import wraps
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, InputMediaPhoto
+from telegram.constants import ChatAction
 from telegram.ext import Application, ContextTypes
 from telegram.ext._applicationbuilder import InitApplicationBuilder
 
@@ -12,7 +14,7 @@ class DangoBot:
         self.builder: InitApplicationBuilder
         self._current_chat_id: int = None
         self._current_message_id: int = None
-        self._current_reel_id: str = None
+        self._current_shortcode: str = None
 
     def create(self, bot_token: str) -> None:
         """
@@ -27,6 +29,18 @@ class DangoBot:
                 required to configure the application.
         """
         self.builder = Application.builder().token(bot_token).updater(None).build()
+
+    @staticmethod
+    def instagram_caller(func):
+        @wraps(func)
+        async def wrapper(self, update: Update, *args, **kwargs):
+            if update and update.message:
+                self._current_chat_id = update.message.chat_id
+                self._current_message_id = update.message.message_id
+
+            return await func(self, update, *args, **kwargs)
+
+        return wrapper
 
     async def handle_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         """
@@ -45,27 +59,72 @@ class DangoBot:
 
         await update.message.reply_text("Send me a URL! 🍡")
 
+    @instagram_caller
     async def send_instagram_reel(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         """
         Sends an Instagram reel video as a response to a user's message containing the reel's
         link.
         """
-        self._current_reel_id = None
-
-        self._current_chat_id: int = update.message.chat_id
-        self._current_message_id: int = update.message.message_id
         user_input: str = update.message.text
 
         try:
             await ctx.bot.send_chat_action(  # Show "sending a video..." status
-                chat_id=self._current_chat_id, action="UPLOAD_VIDEO"
+                chat_id=self._current_chat_id, action=ChatAction.UPLOAD_VIDEO
             )
 
-            (self._current_reel_id, reel_kwargs) = Instagram.get_reel(user_input)  # Fetch video data
+            self._current_shortcode = Instagram.get_shortcode(user_input, "reel")
+            reel_kwargs = Instagram.get_reel(self._current_shortcode)  # Fetch reel data
 
             await ctx.bot.send_video(
                 chat_id=self._current_chat_id, reply_to_message_id=self._current_message_id, **reel_kwargs
             )
+
+        except Exception as e:
+            logging.error(e)
+            await self.show_exception_message(ctx)  # Ask user to report the error
+
+    @instagram_caller
+    async def send_instagram_photo(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """
+        Sends an Instagram reel video as a response to a user's message containing the reel's
+        link.
+        """
+        user_input: str = update.message.text
+
+        try:
+            await ctx.bot.send_chat_action(  # Show "sending a photo..." status
+                chat_id=self._current_chat_id, action=ChatAction.UPLOAD_PHOTO
+            )
+
+            self._current_shortcode = Instagram.get_shortcode(user_input, "p")
+            media_photos = Instagram.get_photo(self._current_shortcode)  # Fetch post data
+
+            if not media_photos:
+                await ctx.bot.send_message(
+                    chat_id=self._current_chat_id,
+                    reply_to_message_id=self._current_message_id,
+                    text="This post does not contain any media."
+                )
+                return
+
+            if len(media_photos["photos"]) == 1:
+                await ctx.bot.send_photo(
+                    chat_id=self._current_chat_id,
+                    reply_to_message_id=self._current_message_id,
+                    caption=media_photos["caption"],
+                    photo=media_photos["photos"][0]
+                )
+
+            else:
+                photo_groups = list(self._chunk_list(media_photos["photos"], 10))
+                for group in photo_groups:
+                    await ctx.bot.send_media_group(
+                        chat_id=self._current_chat_id,
+                        reply_to_message_id=self._current_message_id,
+                        media=[InputMediaPhoto(photo) for photo in group],
+                        caption=media_photos["caption"]
+                    )
+
 
         except Exception as e:
             logging.error(e)
@@ -91,7 +150,7 @@ class DangoBot:
         """
         Log the error and provide the user with a confirmation message.
         """
-        logging.warning(f"A user reported an error with the reel {self._current_reel_id}")
+        logging.warning(f"A user reported an error with the reel {self._current_shortcode}")
 
         inline_keyboard_replacement = InlineKeyboardMarkup([
             [InlineKeyboardButton(text="Reported! ✅", callback_data="reported")],
@@ -110,3 +169,11 @@ class DangoBot:
             "Website: https://dangos.dev\n"
             "Github: https://github.com/dangos-dev"
         )
+
+    @staticmethod
+    def _chunk_list(lst, n):
+        """
+        Divide una lista en sublistas de tamaño `n`.
+        """
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
