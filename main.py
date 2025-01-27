@@ -1,33 +1,37 @@
 import os
 from contextlib import asynccontextmanager
 from http import HTTPStatus
+from optparse import OptionParser
+
+import ngrok
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from telegram import Update
-from telegram.ext import Application, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler
+
+from social.telegram_services import DangoBot
 
 # Load environment variables
 load_dotenv()
-TELEGRAM_BOT_TOKEN: str = os.getenv('TELEGRAM_BOT_TOKEN')
-WEBHOOK_DOMAIN: str = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_DOMAIN: str = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 
-# Build the Telegram Bot application
-bot_builder = (
-    Application.builder()
-    .token(TELEGRAM_BOT_TOKEN)
-    .updater(None)
-    .build()
-)
+# fileConfig("program_logs.ini")
+# logger = logging.getLogger(__name__)
+
+bot = DangoBot()
+bot.create(TELEGRAM_BOT_TOKEN)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """ Sets the webhook for the Telegram Bot and manages its lifecycle (start/stop). """
-    await bot_builder.bot.setWebhook(url=WEBHOOK_DOMAIN)
-    async with bot_builder:
-        await bot_builder.start()
+    """Sets the webhook for the Telegram Bot and manages its lifecycle (start/stop)."""
+    await bot.builder.bot.setWebhook(WEBHOOK_DOMAIN)
+    async with bot.builder:
+        await bot.builder.start()
         yield
-        await bot_builder.stop()
+        await bot.builder.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -35,22 +39,54 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/")
 async def process_update(request: Request):
-    """ Handles incoming Telegram updates and processes them with the bot. """
-    message = await request.json()
-    update = Update.de_json(data=message, bot=bot_builder.bot)
-    await bot_builder.process_update(update)
+    """Handles incoming Telegram updates and processes them with the bot."""
+    data = await request.json()
+    update = Update.de_json(data, bot.builder.bot)
+    await bot.builder.process_update(update)
     return Response(status_code=HTTPStatus.OK)
 
 
-async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
-    """ Handles the /start command by sending a "Hello world!" message in response. """
-    await update.message.reply_text("Hello! 🍡 Send me a message and I'll echo it back to you")
+# Commands
+bot.builder.add_handler(CommandHandler(command="start", callback=bot.handle_start))
+bot.builder.add_handler(CommandHandler(command="dango", callback=bot.handle_aboutme))
 
 
-async def echo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    await update.message.reply_text(update.message.text)
+# Instagram Reel URL input
+bot.builder.add_handler(
+    MessageHandler(
+        filters=filters.Regex(r"^https://(?:www.)?instagram.com/reel/.*"),
+        callback=bot.send_instagram_reel,
+    )
+)
 
+# Report error
+bot.builder.add_handler(
+    CallbackQueryHandler(pattern=r"^report_url$", callback=bot.handle_report_error)
+)
 
-bot_builder.add_handler(CommandHandler(command="start", callback=start))
-bot_builder.add_handler(MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=echo))
+if __name__ == "__main__":
+    # For local testing
+
+    parser = OptionParser()
+    parser.add_option("--ngrok-token", dest="ngrok_token")
+    parser.add_option("--ngrok-url", dest="ngrok_url")
+    parser.add_option("--ngrok-port", dest="ngrok_port")
+
+    (options, _) = parser.parse_args()
+
+    # Ngrok
+    ngrok.set_auth_token(options.ngrok_token)
+
+    ngrok_tunnel = ngrok.connect(
+        addr=int(options.ngrok_port),
+        domain=options.ngrok_url
+    )
+
+    # Uvicorn
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=int(options.ngrok_port),
+        # log_config="program_logs.ini",
+        reload=True
+    )
