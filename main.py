@@ -50,7 +50,6 @@ async def process_update(request: Request):
 bot.builder.add_handler(CommandHandler(command="start", callback=bot.handle_start))
 bot.builder.add_handler(CommandHandler(command="dango", callback=bot.handle_aboutme))
 
-
 # Instagram Reel URL input
 bot.builder.add_handler(
     MessageHandler(
