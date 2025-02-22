@@ -8,23 +8,10 @@ class Instagram:
 
     def __init__(self, username: str, password: str):
         self.graph_api = instaloader.Instaloader()
-        self.graph_api.context.iphone_support = False
-        session_file = f"{username}.session"
-
-        try:
-            # Attempt to load the session from file
-            self.graph_api.load_session_from_file(username, session_file)
-            self.graph_api.context.test_login()  # Validate the session
-            print("Session loaded successfully.")
-        except (FileNotFoundError, instaloader.exceptions.ConnectionException) as e:
-            print(f"Session load failed: {e}. Logging in...")
-
-            # Log in and save the session
-            self.graph_api.login(username, password)
-            self.graph_api.save_session_to_file(filename=session_file)
-            print("Logged in and session saved.")
-
         self.graph_api.login(username, password)
+
+        self.graph_api.context.iphone_support = False
+
 
 
     def get_reel(self, shortcode: str) -> (str, dict):
