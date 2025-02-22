@@ -16,7 +16,7 @@ class DangoBot:
         self._current_message_id: int = None
         self._current_shortcode: str = None
 
-    def create(self, INSTAGRAM_USERNAME: str, INSTAGRAM_PASSWORD: str) -> None:
+    def create(self, username: str, password: str) -> None:
         """
         Creates and initializes an application with the provided bot token.
 
@@ -29,7 +29,7 @@ class DangoBot:
                 required to configure the application.
         """
 
-        self.instagram = Instagram(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+        self.instagram = Instagram(username, password)
 
     @staticmethod
     def instagram_caller(func):

@@ -12,8 +12,6 @@ class Instagram:
 
         self.graph_api.context.iphone_support = False
 
-
-
     def get_reel(self, shortcode: str) -> (str, dict):
 
         # Fetch the post details using the extracted shortcode
