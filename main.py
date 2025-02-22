@@ -24,13 +24,12 @@ INSTAGRAM_PASSWORD: str = os.getenv("INSTAGRAM_PASSWORD")
 # logger = logging.getLogger(__name__)
 
 bot = DangoBot(TELEGRAM_BOT_TOKEN)
+bot.create(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Sets the webhook for the Telegram Bot and manages its lifecycle (start/stop)."""
-
-    bot.create(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-
     await bot.builder.bot.setWebhook(WEBHOOK_DOMAIN)
     async with bot.builder:
         await bot.builder.start()
