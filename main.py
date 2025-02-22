@@ -10,23 +10,27 @@ from fastapi import FastAPI, Request, Response
 from telegram import Update
 from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
+from social.instagram_services import Instagram
 from social.telegram_services import DangoBot
 
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_DOMAIN: str = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+INSTAGRAM_USERNAME: str = os.getenv("INSTAGRAM_USERNAME")
+INSTAGRAM_PASSWORD: str = os.getenv("INSTAGRAM_PASSWORD")
 
 # fileConfig("program_logs.ini")
 # logger = logging.getLogger(__name__)
 
-bot = DangoBot()
-bot.create(TELEGRAM_BOT_TOKEN)
-
+bot = DangoBot(TELEGRAM_BOT_TOKEN)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Sets the webhook for the Telegram Bot and manages its lifecycle (start/stop)."""
+
+    bot.create(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+
     await bot.builder.bot.setWebhook(WEBHOOK_DOMAIN)
     async with bot.builder:
         await bot.builder.start()
@@ -93,7 +97,5 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="127.0.0.1",
-        port=int(options.ngrok_port),
-        # log_config="program_logs.ini",
-        reload=True
+        port=int(options.ngrok_port)
     )

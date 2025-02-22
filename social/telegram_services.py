@@ -10,13 +10,13 @@ from social.instagram_services import Instagram
 
 
 class DangoBot:
-    def __init__(self):
-        self.builder: InitApplicationBuilder
+    def __init__(self, bot_token: str):
+        self.builder: InitApplicationBuilder = Application.builder().token(bot_token).updater(None).build()
         self._current_chat_id: int = None
         self._current_message_id: int = None
         self._current_shortcode: str = None
 
-    def create(self, bot_token: str) -> None:
+    def create(self, INSTAGRAM_USERNAME: str, INSTAGRAM_PASSWORD: str) -> None:
         """
         Creates and initializes an application with the provided bot token.
 
@@ -28,7 +28,8 @@ class DangoBot:
             bot_token: A string representing the bot token used for authorization. It is
                 required to configure the application.
         """
-        self.builder = Application.builder().token(bot_token).updater(None).build()
+
+        self.instagram = Instagram(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 
     @staticmethod
     def instagram_caller(func):
@@ -72,8 +73,8 @@ class DangoBot:
                 chat_id=self._current_chat_id, action=ChatAction.UPLOAD_VIDEO
             )
 
-            self._current_shortcode = Instagram.get_shortcode(user_input, "reel")
-            reel_kwargs = Instagram.get_reel(self._current_shortcode)  # Fetch reel data
+            self._current_shortcode = self.instagram.get_shortcode(user_input, "reel")
+            reel_kwargs = self.instagram.get_reel(self._current_shortcode)  # Fetch reel data
 
             await ctx.bot.send_video(
                 chat_id=self._current_chat_id, reply_to_message_id=self._current_message_id, **reel_kwargs
@@ -96,8 +97,8 @@ class DangoBot:
                 chat_id=self._current_chat_id, action=ChatAction.UPLOAD_PHOTO
             )
 
-            self._current_shortcode = Instagram.get_shortcode(user_input, "p")
-            media_photos = Instagram.get_photo(self._current_shortcode)  # Fetch post data
+            self._current_shortcode = self.instagram.get_shortcode(user_input, "p")
+            media_photos = self.instagram.get_photo(self._current_shortcode)  # Fetch post data
 
             if not media_photos:
                 await ctx.bot.send_message(
